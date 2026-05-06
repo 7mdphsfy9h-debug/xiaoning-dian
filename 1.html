@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小宁点单</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --bg: #1A1815;
+            --bg-secondary: #222019;
+            --card: rgba(255, 245, 228, 0.035);
+            --card-hover: rgba(255, 245, 228, 0.065);
+            --accent: #C4956A;
+            --accent-light: #D4A87E;
+            --accent-glow: rgba(196, 149, 106, 0.1);
+            --text: #EDE6DD;
+            --text-secondary: #8A8078;
+            --border: rgba(255, 245, 228, 0.06);
+            --success: #8BB89A;
+            --danger: #C9827E;
+        }
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:'Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+
+        .bg-atmosphere{position:fixed;inset:0;pointer-events:none;z-index:0;
+            background:radial-gradient(ellipse 600px 400px at 12% 8%,rgba(196,149,106,0.05),transparent 70%),
+            radial-gradient(ellipse 500px 500px at 88% 88%,rgba(139,184,154,0.03),transparent 70%),
+            radial-gradient(ellipse 800px 350px at 50% 45%,rgba(196,149,106,0.02),transparent 70%);}
+
+        .floating-dot{position:fixed;border-radius:50%;background:var(--accent);pointer-events:none;z-index:0;opacity:0;animation:floatUp linear infinite;}
+        @keyframes floatUp{0%{opacity:0;transform:translateY(0) scale(0.5)}15%{opacity:0.08}85%{opacity:0.05}100%{opacity:0;transform:translateY(-100vh) scale(1)}}
+
+        ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,245,228,0.08);border-radius:3px}
+
+        /* 分类侧栏 */
+        .category-sidebar{width:136px;min-width:136px;background:var(--bg-secondary);border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0;}
+        .category-item{padding:16px 18px;cursor:pointer;border-left:3px solid transparent;transition:all 0.3s;color:var(--text-secondary);font-size:14px;display:flex;align-items:center;gap:10px;user-select:none;}
+        .category-item:hover{color:var(--text);background:var(--card-hover);}
+        .category-item.active{color:var(--accent);border-left-color:var(--accent);background:var(--accent-glow);font-weight:500;}
+        .category-item i{width:18px;text-align:center;font-size:13px;}
+
+        /* 菜品卡片 */
+        .dish-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px;cursor:pointer;transition:all 0.3s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;}
+        .dish-card::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(196,149,106,0.06),transparent 60%);opacity:0;transition:opacity 0.3s;}
+        .dish-card:hover{transform:translateY(-2px);border-color:rgba(196,149,106,0.2);box-shadow:0 6px 24px rgba(196,149,106,0.06);}
+        .dish-card:hover::after{opacity:1}
+        .dish-card:active{transform:scale(0.98)}
+
+        .dish-avatar{width:50px;height:50px;border-radius:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;z-index:1;overflow:hidden;}
+        .dish-avatar img{width:100%;height:100%;object-fit:cover;}
+
+        .add-circle{width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;border:none;cursor:pointer;transition:all 0.2s;flex-shrink:0;position:relative;z-index:1;opacity:0.85;}
+        .add-circle:hover{opacity:1;background:var(--accent-light);transform:scale(1.15)}
+        .add-circle:active{transform:scale(0.9)}
+
+        /* 购物车 */
+        .cart-bar{background:var(--bg-secondary);border-top:1px solid var(--border);}
+        .cart-item{animation:cartSlideIn 0.3s ease}
+        @keyframes cartSlideIn{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:translateX(0)}}
+        .cart-item.removing{animation:cartSlideOut 0.25s ease forwards}
+        @keyframes cartSlideOut{to{opacity:0;transform:translateX(16px);height:0;padding-top:0;padding-bottom:0;margin:0;overflow:hidden}}
+
+        .del-btn{color:var(--text-secondary);cursor:pointer;padding:4px 8px;border-radius:6px;transition:all 0.2s;font-size:13px;border:none;background:none;}
+        .del-btn:hover{color:var(--danger);background:rgba(201,130,126,0.1)}
+
+        .qty-ctrl{display:flex;align-items:center;gap:6px;}
+        .qty-btn{width:24px;height:24px;border-radius:50%;border:1px solid var(--border);background:var(--card);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;transition:all 0.2s;}
+        .qty-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+        /* 模态框 */
+        .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(6px);z-index:100;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.3s;}
+        .modal-mask.show{opacity:1;pointer-events:all}
+        .modal-box{background:var(--bg-secondary);border:1px solid var(--border);border-radius:20px;padding:30px;width:90%;max-width:400px;transform:scale(0.92) translateY(16px);transition:transform 0.35s cubic-bezier(0.4,0,0.2,1);}
+        .modal-mask.show .modal-box{transform:scale(1) translateY(0)}
+
+        .time-input{width:100%;padding:13px 15px;background:var(--card);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:'Noto Sans SC',sans-serif;font-size:15px;outline:none;transition:border-color 0.3s;}
+        .time-input:focus{border-color:var(--accent)}
+        .time-input::-webkit-calendar-picker-indicator{filter:invert(0.5);cursor:pointer}
+
+        .btn-primary{background:var(--accent);color:#fff;border:none;border-radius:12px;padding:13px 28px;font-size:15px;font-weight:500;cursor:pointer;transition:all 0.3s;font-family:'Noto Sans SC',sans-serif;width:100%;}
+        .btn-primary:hover{background:var(--accent-light);box-shadow:0 4px 20px rgba(196,149,106,0.2)}
+        .btn-primary:active{transform:scale(0.98)}
+        .btn-primary:disabled{opacity:0.3;cursor:not-allowed;transform:none;box-shadow:none}
+
+        .btn-ghost{background:transparent;color:var(--text-secondary);border:1px solid var(--border);border-radius:12px;padding:13px 28px;font-size:15px;cursor:pointer;transition:all 0.3s;font-family:'Noto Sans SC',sans-serif;width:100%;}
+        .btn-ghost:hover{color:var(--text);border-color:rgba(255,245,228,0.15)}
+
+        .toast-msg{position:fixed;top:24px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--bg-secondary);border:1px solid var(--accent);color:var(--text);padding:10px 22px;border-radius:12px;font-size:13px;z-index:300;transition:transform 0.4s cubic-bezier(0.4,0,0.2,1);box-shadow:0 8px 30px rgba(0,0,0,0.3);display:flex;align-items:center;gap:8px;white-space:nowrap;}
+        .toast-msg.show{transform:translateX(-50%) translateY(0)}
+
+        /* 确认页 */
+        .confirm-page{display:none;min-height:100vh;position:relative;z-index:1}
+        .confirm-page.active{display:block}
+        .confirm-card{background:var(--bg-secondary);border:1px solid var(--border);border-radius:20px;padding:30px;max-width:480px;width:100%;margin:0 auto;}
+        .confirm-dish-row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--border);font-size:14px;}
+        .confirm-dish-row:last-child{border-bottom:none}
+
+        .main-page{display:flex;flex-direction:column;min-height:100vh;position:relative;z-index:1}
+        .main-page.hidden{display:none}
+        .cart-empty{color:var(--text-secondary);text-align:center;padding:16px 0;font-size:13px}
+
+        @keyframes cartPulse{0%{box-shadow:0 0 0 0 rgba(196,149,106,0.3)}70%{box-shadow:0 0 0 8px rgba(196,149,106,0)}100%{box-shadow:0 0 0 0 rgba(196,149,106,0)}}
+        .cart-pulse{animation:cartPulse 0.5s ease}
+
+        /* Logo SVG 内联备用 */
+        .logo-icon{width:20px;height:20px;}
+
+        @media(max-width:768px){
+            .category-sidebar{width:100%!important;min-width:100%!important;flex-direction:row!important;border-right:none!important;border-bottom:1px solid var(--border);overflow-x:auto;overflow-y:hidden;flex-shrink:0;}
+            .category-item{border-left:none!important;border-bottom:3px solid transparent;white-space:nowrap;padding:12px 14px;font-size:13px;}
+            .category-item.active{border-left:none!important;border-bottom-color:var(--accent)!important;}
+            .content-wrap{flex-direction:column!important}
+            .dish-grid{grid-template-columns:1fr!important}
+        }
+        @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important}}
+    </style>
+</head>
+<body>
+<div class="bg-atmosphere" aria-hidden="true"></div>
+<div id="particles" aria-hidden="true"></div>
+
+<div class="toast-msg" id="toast" role="alert">
+    <span style="font-size:14px;">✅</span>
+    <span id="toastText"></span>
+</div>
+
+<!-- ========== 主点单页面 ========== -->
+<div class="main-page" id="mainPage">
+    <header style="background:var(--bg-secondary);border-bottom:1px solid var(--border);padding:18px 24px;display:flex;align-items:center;gap:12px;flex-shrink:0;">
+        <div style="width:40px;height:40px;border-radius:11px;background:var(--accent);display:flex;align-items:center;justify-content:center;opacity:0.9;">
+            <!-- 内联 SVG 碗筷图标，不依赖 FA -->
+            <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 14h18c0 4-4 6-9 6s-9-2-9-6z"/>
+                <line x1="12" y1="2" x2="12" y2="8"/>
+                <line x1="9" y1="5" x2="15" y2="5"/>
+            </svg>
+        </div>
+        <div>
+            <h1 style="font-size:20px;font-weight:900;letter-spacing:1px;line-height:1.2;">小宁点单</h1>
+            <p style="font-size:11px;color:var(--text-secondary);margin-top:1px;">新鲜食材 · 用心烹饪 · 定期更新ing</p>
+        </div>
+    </header>
+
+    <div class="content-wrap" style="display:flex;flex:1;overflow:hidden;">
+        <nav class="category-sidebar" id="categorySidebar" aria-label="菜品分类"></nav>
+        <main style="flex:1;overflow-y:auto;padding:20px 22px;" id="dishArea">
+            <div id="dishGrid" class="dish-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;"></div>
+        </main>
+    </div>
+
+    <section class="cart-bar" id="cartBar" aria-label="购物车" style="flex-shrink:0;">
+        <div style="padding:14px 22px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" id="cartHeader" role="button" tabindex="0" aria-expanded="false" aria-controls="cartBody">
+            <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="position:relative;">
+                        <span style="font-size:16px;">🛒</span>
+                        <span id="cartBadge" style="position:absolute;top:-8px;right:-10px;background:var(--accent);color:#fff;width:18px;height:18px;border-radius:50%;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700;transform:scale(0);transition:transform 0.3s cubic-bezier(0.4,0,0.2,1);"></span>
+                    </span>
+                <span style="font-size:14px;font-weight:500;">购物车</span>
+                <span style="font-size:12px;color:var(--text-secondary);" id="cartCount"></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;">
+                <span style="font-size:14px;color:var(--text-secondary);" id="cartTotalText"></span>
+                <i class="fa-solid fa-chevron-up" id="cartArrow" style="font-size:11px;color:var(--text-secondary);transition:transform 0.3s;"></i>
+            </div>
+        </div>
+        <div id="cartBody" style="max-height:0;overflow:hidden;transition:max-height 0.35s ease;">
+            <div style="padding:0 22px 14px;" id="cartList"></div>
+        </div>
+        <div style="padding:0 22px 16px;">
+            <button class="btn-primary" id="orderBtn" disabled onclick="showOrderModal()">
+                <span style="margin-right:6px;">📤</span>去下单
+            </button>
+        </div>
+    </section>
+</div>
+
+<!-- ========== 时间选择模态框 ========== -->
+<div class="modal-mask" id="timeModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-box">
+        <h2 id="modalTitle" style="font-size:18px;font-weight:700;margin-bottom:6px;">选择用餐时间</h2>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:22px;">请选择您的预约用餐时间</p>
+        <label for="timeInput" style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:8px;">预约时间</label>
+        <input type="datetime-local" class="time-input" id="timeInput" aria-label="预约用餐时间">
+        <p id="timeError" style="font-size:12px;color:var(--danger);margin-top:8px;display:none;"></p>
+        <div style="display:flex;gap:10px;margin-top:24px;">
+            <button class="btn-ghost" onclick="hideOrderModal()" style="flex:1;">取消</button>
+            <button class="btn-primary" onclick="confirmOrder()" style="flex:1;">确认下单</button>
+        </div>
+    </div>
+</div>
+
+<!-- ========== 订单确认页面 ========== -->
+<div class="confirm-page" id="confirmPage">
+    <div class="bg-atmosphere" aria-hidden="true"></div>
+    <div style="padding:24px 16px;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <div style="text-align:center;margin-bottom:28px;">
+            <div style="width:56px;height:56px;border-radius:50%;background:rgba(139,184,154,0.1);display:inline-flex;align-items:center;justify-content:center;margin-bottom:14px;">
+                <span style="font-size:24px;">✅</span>
+            </div>
+            <h2 style="font-size:22px;font-weight:900;">下单成功</h2>
+            <p style="font-size:13px;color:var(--text-secondary);margin-top:6px;">请截图保存以下信息，到店出示即可</p>
+        </div>
+
+        <div class="confirm-card" id="confirmCard">
+            <!-- 店铺信息 -->
+            <div style="display:flex;align-items:center;gap:10px;padding-bottom:16px;border-bottom:1px solid var(--border);margin-bottom:16px;">
+                <div style="width:36px;height:36px;border-radius:9px;background:var(--accent);display:flex;align-items:center;justify-content:center;opacity:0.9;">
+                    <svg style="width:18px;height:18px;" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 14h18c0 4-4 6-9 6s-9-2-9-6z"/><line x1="12" y1="2" x2="12" y2="8"/><line x1="9" y1="5" x2="15" y2="5"/>
+                    </svg>
+                </div>
+                <div>
+                    <div style="font-weight:700;font-size:15px;">小宁点单</div>
+                    <div style="font-size:11px;color:var(--text-secondary);">预约用餐凭证</div>
+                </div>
+            </div>
+
+            <!-- 用餐时间 -->
+            <div style="background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:18px;display:flex;align-items:center;gap:12px;">
+                <span style="font-size:20px;">⏰</span>
+                <div>
+                    <div style="font-size:11px;color:var(--text-secondary);margin-bottom:2px;">预约用餐时间</div>
+                    <div style="font-size:16px;font-weight:700;" id="confirmTime"></div>
+                </div>
+            </div>
+
+            <!-- 菜品列表 -->
+            <div style="margin-bottom:16px;">
+                <div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;">菜品明细</div>
+                <div id="confirmDishList"></div>
+            </div>
+
+            <!-- 订单号 -->
+            <div style="padding-top:14px;border-top:1px solid var(--border);text-align:center;">
+                <span style="font-size:11px;color:var(--text-secondary);">订单编号： </span>
+                <span style="font-size:11px;color:var(--text-secondary);font-family:monospace;" id="confirmOrderNo"></span>
+            </div>
+        </div>
+
+        <div style="max-width:480px;width:100%;display:flex;gap:10px;margin-top:20px;padding:0 16px;">
+            <button class="btn-ghost" onclick="goBack()" style="flex:1;">
+                <span style="margin-right:6px;">↩️</span>继续点单
+            </button>
+            <button class="btn-primary" onclick="saveAsImage()" style="flex:1;">
+                <span style="margin-right:6px;">📸</span>保存截图
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* ===================== 菜品数据（优化版） ===================== */
+    const categories = [
+        {
+            name: '拿手大菜',
+            icon: '🌟',
+            color: '#C4956A',
+            dishes: [
+                { name: '贵州酸汤锅', desc: '酸辣过瘾，汤底浓郁到可以喝光', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/3523e3fbc58e448a9bbec17bb1970a87.png' },
+                { name: '麻辣小龙虾', desc: '夏天必点，麻辣入味，配冰啤酒绝了', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/1669b20d0f4242188a430522b9cfa8fe.jpg' },
+                { name: '蒜蓉小龙虾', desc: '蒜香浓郁，带一点点甜，很好剥', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/6cffdb36905b446297ecfa1fcc48adc2.jpg' },
+                { name: '东北大乱炖', desc: '土豆粉条胡萝卜乱炖一锅，下饭神器', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/82ee4e6383804d6db182e7b3492d6604.png' },
+                { name: '香糯鸡爪煲', desc: '软糯入味，一抿脱骨，需提前1天预约容主厨提前买打折鸡爪', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/b3813eb02a14441ea6f25e5e30d6b241.png' },
+                { name: '金牌红烧肉', desc: '肥而不腻，入口即化，米饭杀手', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/bd7806a79a4a42449a4cd92aa4ac7180.png' },
+                { name: '萝卜烧牛肉', desc: '白萝卜软烂吸汁，牛肉酥香下饭', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/83c12c72c11c46e39ea4fce90dc60d9c.png' },
+                { name: '玉米萝卜排骨汤', desc: '清甜不腻，暖胃暖心汤品首选', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/3ad9e2bd71594f458b84406c33f88695.png' },
+                { name: '乐山钵钵鸡', desc: '冷锅红油串串，麻辣鲜香停不下来', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/2a71796ef7064fb7a285037cab557c20.png' },
+                { name: '酸萝卜老鸭汤', desc: '酸萝卜提味，鸭肉不腥不柴，汤很好喝', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/f2ee2f02676e490a9107f9d84bdd3191.png' }
+            ]
+        },
+        {
+            name: '家常菜',
+            icon: '🏠',
+            color: '#8BB89A',
+            dishes: [
+                { name: '番茄炒蛋', desc: '经典家常，酸甜可口，米饭拌汤一绝', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/5ccafdd2b6cc4e3f978bb9fa5b70af08.png' },
+                { name: '烂肉豌豆', desc: '番茄+豌豆+肉末，下饭开胃神器', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/da804cda4558442ca7e400471102beb8.png' },
+                { name: '爆炒牛肚', desc: '泡椒爽脆，牛肚劲道有嚼劲', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/5c22aff1178141be8146e5ee99fa6a86.png' },
+                { name: '炒三丝', desc: '胡萝卜丝/青椒丝/葱丝，清爽家常味', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/00a67dee56784149b4cf328b043d7c8c.png' },
+                { name: '炒土豆', desc: '可选：土豆片脆香 / 土豆丝酸辣爽口', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/fb1187db28d348069b7e91cd1f63d9b6.jpeg' },
+                { name: '青椒肉丝', desc: '肉丝嫩滑、青椒脆爽，经典快手菜', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/132318bb9e8343e8852dfbb4f58721e8.png' },
+                { name: '醋溜白菜', desc: '酸辣开胃，大口吃菜特别过瘾', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/4e0c0719aa704b2bbc2d846ebe02a0a8.jfif' },
+                { name: '香菜肉丸', desc: '纯手工肉丸，Q弹扎实，放心点', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/f10d39fe8c6949cc8764a7c00d44f767.webp' },
+                { name: '双椒兔', desc: '双椒香辣、兔肉细嫩，需提前宰好', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/0bd6736df75e4ff3a391c2c5ace83c95.jpg' }
+            ]
+        },
+        {
+            name: '创意菜',
+            icon: '🥬',
+            color: '#7EB8C9',
+            dishes: [
+                { name: '螺蛳粉', desc: '酸辣鲜香，需提前下单备料（淘宝包邮）', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/f2c18b54ae264ae1a93d94a5b894bea9.jpg' },
+                { name: '炸蛋', desc: '爆汁炸蛋，配螺蛳粉/酸汤锅绝配', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/bc54994d9dd7456eb893e7adce30b69e.jpg' },
+                { name: '芝士焗龙虾', desc: '漆总主场，芝士浓郁、龙虾鲜甜', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/71764bf005b94f958049cf19e2d52cfb.jpg' },
+                { name: '爆炸手抓饼', desc: '料多到爆炸，随心配肉蛋菜', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/2623a676a0bb445f8e48d9a736fde455.jpg' },
+                { name: '金牌蛋炒饭', desc: '米饭粒粒分明，锅气十足', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/45194ce9377f48bd81c2f44f58711b33.jfif' },
+                { name: '香菜肉片', desc: '漆总最爱，香菜控必点', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/72da103b9c384cce900af666fb78a789.jfif' },
+                { name: '港式米线', desc: '好久没吃，米线顺滑、汤底清鲜', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/83cf32ba7707449384172a3f9d3704e9.jfif' },
+                { name: '老式烤肉拌饭', desc: '小宁最爱，肉多酱香，分量扎实', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/87bf56cade404ea288d574853522537c.jpg' }
+            ]
+        },
+        {
+            name: '味道不稳定菜',
+            icon: '🍵',
+            color: '#C9B88A',
+            dishes: [
+                { name: '烤羊肉', desc: '火候偶尔拿捏不准，吃点手气', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/47cbc505f2d24305ab8fd686a1d9ade6.png' },
+                { name: '水煮肉片', desc: '味道高度依赖火锅料版本，看运气', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/4f7c07db513a46a09ef60c6a659b7113.jfif' },
+                { name: '爆炒鸡杂', desc: '火候还在修炼中，偶尔偏老/偏生', image: 'http://bwjz.oss-cn-chengdu.aliyuncs.com/snh/2026/05/06/79b8d9d5aaa54dcab5a3e4fb6e4998d4.jfif' }
+            ]
+        }
+    ];
+
+
+    /* ===================== 状态 ===================== */
+    let cart = [];
+    let activeCategory = 0;
+    let cartExpanded = false;
+
+    /* ===================== 初始化 ===================== */
+    function init() {
+        createParticles();
+        renderCategories();
+        renderDishes(0);
+        setMinTime();
+    }
+
+    /* ===================== 浮动微粒 ===================== */
+    function createParticles() {
+        const c = document.getElementById('particles');
+        for (let i = 0; i < 6; i++) {
+            const d = document.createElement('div');
+            d.className = 'floating-dot';
+            const s = 2 + Math.random() * 2;
+            d.style.width = s + 'px';
+            d.style.height = s + 'px';
+            d.style.left = Math.random() * 100 + '%';
+            d.style.bottom = '-10px';
+            d.style.animationDuration = (12 + Math.random() * 18) + 's';
+            d.style.animationDelay = (Math.random() * 12) + 's';
+            c.appendChild(d);
+        }
+    }
+
+    /* ===================== 渲染分类 ===================== */
+    function renderCategories() {
+        const sidebar = document.getElementById('categorySidebar');
+        sidebar.innerHTML = '';
+        categories.forEach((cat, idx) => {
+            const item = document.createElement('div');
+            item.className = 'category-item' + (idx === activeCategory ? ' active' : '');
+            item.setAttribute('role', 'tab');
+            item.setAttribute('tabindex', '0');
+            item.setAttribute('aria-selected', idx === activeCategory);
+            item.innerHTML = '<span style="font-size:14px;">' + cat.icon + '</span><span>' + cat.name + '</span>';
+            item.addEventListener('click', function() { switchCategory(idx); });
+            item.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchCategory(idx); }
+            });
+            sidebar.appendChild(item);
+        });
+    }
+
+    /* ===================== 切换分类 ===================== */
+    function switchCategory(idx) {
+        activeCategory = idx;
+        renderCategories();
+        renderDishes(idx);
+        document.getElementById('dishArea').scrollTop = 0;
+    }
+
+    /* ===================== 渲染菜品 ===================== */
+    function renderDishes(catIdx) {
+        const grid = document.getElementById('dishGrid');
+        const cat = categories[catIdx];
+        grid.innerHTML = '';
+
+        // 分类标题
+        const header = document.createElement('div');
+        header.style.cssText = 'grid-column:1/-1;margin-bottom:6px;';
+        header.innerHTML = '<div style="display:flex;align-items:center;gap:8px;">'
+            + '<span style="width:3px;height:16px;border-radius:2px;background:' + cat.color + ';opacity:0.8;"></span>'
+            + '<h2 style="font-size:16px;font-weight:700;">' + cat.name + '</h2>'
+            + '<span style="font-size:12px;color:var(--text-secondary);">' + cat.dishes.length + '道</span>'
+            + '</div>';
+        grid.appendChild(header);
+
+        cat.dishes.forEach(function(dish) {
+            const card = document.createElement('div');
+            card.className = 'dish-card';
+            card.setAttribute('role', 'button');
+            card.setAttribute('tabindex', '0');
+            card.setAttribute('aria-label', dish.name + '，点击添加到购物车');
+            card.innerHTML = '<div class="dish-avatar">'
+                + '<img src="' + dish.image + '" alt="' + dish.name + '" loading="lazy">'
+                + '</div>'
+                + '<div style="flex:1;min-width:0;position:relative;z-index:1;">'
+                + '<div style="font-size:14px;font-weight:600;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + dish.name + '</div>'
+                + '<div style="font-size:11px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + dish.desc + '</div>'
+                + '</div>'
+                + '<button class="add-circle" aria-label="添加' + dish.name + '"><i class="fa-solid fa-plus" style="font-size:11px;"></i></button>';
+            card.addEventListener('click', function() { addToCart(dish, cat.color); });
+            card.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); addToCart(dish, cat.color); }
+            });
+            grid.appendChild(card);
+        });
+    }
+
+    /* ===================== 添加到购物车 ===================== */
+    function addToCart(dish, color) {
+        const existing = cart.find(function(item) { return item.name === dish.name; });
+        if (existing) {
+            existing.qty++;
+        } else {
+            cart.push({ name: dish.name, qty: 1, color: color, image: dish.image });
+        }
+        renderCart();
+        showToast('已添加 ' + dish.name);
+        const bar = document.getElementById('cartBar');
+        bar.classList.remove('cart-pulse');
+        void bar.offsetWidth;
+        bar.classList.add('cart-pulse');
+    }
+
+    /* ===================== 删除 ===================== */
+    function removeFromCart(name) {
+        const el = document.querySelector('[data-cart-item="' + name + '"]');
+        if (el) {
+            el.classList.add('removing');
+            setTimeout(function() {
+                cart = cart.filter(function(item) { return item.name !== name; });
+                renderCart();
+            }, 250);
+        } else {
+            cart = cart.filter(function(item) { return item.name !== name; });
+            renderCart();
+        }
+    }
+
+    /* ===================== 修改数量 ===================== */
+    function changeQty(name, delta) {
+        const item = cart.find(function(i) { return i.name === name; });
+        if (!item) return;
+        item.qty += delta;
+        if (item.qty <= 0) { removeFromCart(name); return; }
+        renderCart();
+    }
+
+    /* ===================== 渲染购物车 ===================== */
+    function renderCart() {
+        const list = document.getElementById('cartList');
+        const count = cart.reduce(function(s, i) { return s + i.qty; }, 0);
+
+        document.getElementById('cartCount').textContent = count > 0 ? '(' + count + '件)' : '';
+        document.getElementById('cartTotalText').textContent = count > 0 ? '已选' + cart.length + '道菜' : '';
+        document.getElementById('orderBtn').disabled = cart.length === 0;
+
+        const badge = document.getElementById('cartBadge');
+        if (count > 0) {
+            badge.textContent = count > 99 ? '99+' : count;
+            badge.style.transform = 'scale(1)';
+        } else {
+            badge.style.transform = 'scale(0)';
+        }
+
+        if (cart.length === 0) {
+            list.innerHTML = '<div class="cart-empty"><i class="fa-regular fa-face-meh" style="margin-right:4px;"></i>购物车还是空的，快去选菜吧</div>';
+            return;
+        }
+
+        list.innerHTML = cart.map(function(item) {
+            return '<div class="cart-item" data-cart-item="' + item.name + '" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">'
+                + '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">'
+                + '<div class="dish-avatar" style="width:36px;height:36px;">'
+                + '<img src="' + item.image + '" alt="' + item.name + '" style="width:100%;height:100%;object-fit:cover;">'
+                + '</div>'
+                + '<span style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + item.name + '</span>'
+                + '</div>'
+                + '<div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">'
+                + '<div class="qty-ctrl">'
+                + '<button class="qty-btn" onclick="changeQty(\'' + item.name + '\',-1)" aria-label="减少数量"><i class="fa-solid fa-minus" style="font-size:9px;"></i></button>'
+                + '<span style="font-size:13px;min-width:18px;text-align:center;">' + item.qty + '</span>'
+                + '<button class="qty-btn" onclick="changeQty(\'' + item.name + '\',1)" aria-label="增加数量"><i class="fa-solid fa-plus" style="font-size:9px;"></i></button>'
+                + '</div>'
+                + '<button class="del-btn" onclick="removeFromCart(\'' + item.name + '\')" aria-label="删除' + item.name + '"><i class="fa-solid fa-trash-can" style="font-size:12px;"></i></button>'
+                + '</div></div>';
+        }).join('');
+    }
+
+    /* ===================== 购物车展开/收起 ===================== */
+    document.getElementById('cartHeader').addEventListener('click', toggleCart);
+    document.getElementById('cartHeader').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCart(); }
+    });
+
+    function toggleCart() {
+        cartExpanded = !cartExpanded;
+        const body = document.getElementById('cartBody');
+        const arrow = document.getElementById('cartArrow');
+        const header = document.getElementById('cartHeader');
+        if (cartExpanded) {
+            body.style.maxHeight = body.scrollHeight + 200 + 'px';
+            arrow.style.transform = 'rotate(180deg)';
+            header.setAttribute('aria-expanded', 'true');
+        } else {
+            body.style.maxHeight = '0';
+            arrow.style.transform = 'rotate(0)';
+            header.setAttribute('aria-expanded', 'false');
+        }
+    }
+
+    /* ===================== 时间模态框 ===================== */
+    function showOrderModal() {
+        if (cart.length === 0) return;
+        setMinTime();
+        document.getElementById('timeInput').value = '';
+        document.getElementById('timeError').style.display = 'none';
+        document.getElementById('timeModal').classList.add('show');
+    }
+
+    function hideOrderModal() {
+        document.getElementById('timeModal').classList.remove('show');
+    }
+
+    document.getElementById('timeModal').addEventListener('click', function(e) {
+        if (e.target === e.currentTarget) hideOrderModal();
+    });
+
+    function setMinTime() {
+        var now = new Date();
+        now.setMinutes(now.getMinutes() + 10);
+        document.getElementById('timeInput').min = formatDateForInput(now);
+    }
+
+    function formatDateForInput(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+            + 'T' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    }
+
+    function formatDisplayTime(str) {
+        var d = new Date(str);
+        var weeks = ['日','一','二','三','四','五','六'];
+        return d.getFullYear() + '年' + String(d.getMonth()+1).padStart(2,'0') + '月' + String(d.getDate()).padStart(2,'0') + '日 周' + weeks[d.getDay()]
+            + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+    }
+
+    /* ===================== 确认下单 ===================== */
+    function confirmOrder() {
+        var timeVal = document.getElementById('timeInput').value;
+        var errorEl = document.getElementById('timeError');
+        if (!timeVal) { errorEl.style.display = 'block'; errorEl.textContent = '请选择用餐时间'; return; }
+        var selected = new Date(timeVal);
+        var minTime = new Date(); minTime.setMinutes(minTime.getMinutes() + 10);
+        if (selected < minTime) { errorEl.style.display = 'block'; errorEl.textContent = '用餐时间需至少提前10分钟预约'; return; }
+        errorEl.style.display = 'none';
+        hideOrderModal();
+        renderConfirmPage(timeVal);
+    }
+
+    /* ===================== 渲染确认页 ===================== */
+    function renderConfirmPage(timeStr) {
+        document.getElementById('mainPage').classList.add('hidden');
+        document.getElementById('confirmPage').classList.add('active');
+        document.getElementById('confirmTime').textContent = formatDisplayTime(timeStr);
+
+        document.getElementById('confirmDishList').innerHTML = cart.map(function(item) {
+            return '<div class="confirm-dish-row">'
+                + '<div style="display:flex;align-items:center;gap:10px;">'
+                + '<div class="dish-avatar" style="width:36px;height:36px;">'
+                + '<img src="' + item.image + '" alt="' + item.name + '" style="width:100%;height:100%;object-fit:cover;">'
+                + '</div>'
+                + '<span>' + item.name + '</span>'
+                + '<span style="color:var(--text-secondary);font-size:12px;">x' + item.qty + '</span>'
+                + '</div></div>';
+        }).join('');
+
+        var orderNo = 'XN' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+        document.getElementById('confirmOrderNo').textContent = orderNo;
+        window.scrollTo(0, 0);
+    }
+
+    /* ===================== 返回 ===================== */
+    function goBack() {
+        document.getElementById('confirmPage').classList.remove('active');
+        document.getElementById('mainPage').classList.remove('hidden');
+        cart = [];
+        renderCart();
+        if (cartExpanded) toggleCart();
+    }
+
+    /* ===================== 截图保存 ===================== */
+    function saveAsImage() {
+        var card = document.getElementById('confirmCard');
+        showToast('正在生成截图...');
+        html2canvas(card, { backgroundColor: '#222019', scale: 2, useCORS: true, logging: false }).then(function(canvas) {
+            var link = document.createElement('a');
+            link.download = '小宁点单-预约凭证.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            showToast('截图已保存');
+        }).catch(function() { showToast('截图生成失败，请手动截图'); });
+    }
+
+    /* ===================== Toast ===================== */
+    var toastTimer = null;
+    function showToast(msg) {
+        var toast = document.getElementById('toast');
+        document.getElementById('toastText').textContent = msg;
+        toast.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 2000);
+    }
+
+    /* ===================== Esc 关闭 ===================== */
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') hideOrderModal(); });
+
+    /* ===================== 启动 ===================== */
+    init();
+</script>
+</body>
+</html>
